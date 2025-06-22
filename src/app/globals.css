@@ -1,0 +1,148 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Sans+Pro:wght@400;600;700&display=swap');
+
+/* Design System Theme Variables - "Confidence through Clarity" */
+:root {
+  /* Core Brand Colors - "Investor Confidence" Palette */
+  --bg: 255 255 255;        /* Crisp White - Clarity, space, focus */
+  --fg: 10 15 28;           /* Deep Navy - Authority, trust, depth */
+  --accent: 37 99 235;      /* Electric Blue - Innovation, AI intelligence */
+  
+  /* Semantic Colors */
+  --success: 16 185 129;    /* Success Green - Completion, growth */
+  --warning: 245 158 11;    /* Warning Amber - Attention, review needed */
+  --neutral: 100 116 139;   /* Warm Gray - Professional neutrality */
+  
+  /* Surface & Interactive */
+  --surface: 248 250 252;   /* Light background for cards */
+  --border: 226 232 240;    /* Subtle borders */
+  --hover: 241 245 249;     /* Hover states */
+}
+
+/* Template-Specific Theme Variables */
+[data-theme="A"] {
+  --bg: 0 0 0;              /* Black background */
+  --fg: 255 255 255;        /* White text */
+  --accent: 124 58 237;     /* Deep Purple accent */
+}
+
+[data-theme="B"] {
+  --bg: 255 255 255;        /* White background */
+  --fg: 17 24 39;           /* Dark gray */
+  --accent: 220 38 38;      /* Strategic Red */
+}
+
+[data-theme="C"] {
+  --bg: 254 252 232;        /* Warm cream background */
+  --fg: 120 53 15;          /* Warm brown */
+  --accent: 234 88 12;      /* Deep Orange */
+}
+
+[data-theme="D"] {
+  --bg: 240 253 250;        /* Light mint background */
+  --fg: 6 78 59;            /* Dark forest green */
+  --accent: 13 148 136;     /* Teal accent */
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: 10 15 28;         /* Deep Navy background */
+    --fg: 248 250 252;      /* Off White text */
+    --accent: 59 130 246;   /* Brighter Blue */
+    --surface: 30 42 58;    /* Lighter Navy surface */
+    --border: 51 65 85;     /* Subtle borders */
+    --hover: 71 85 105;     /* Hover states */
+  }
+}
+
+/* Base Styles */
+* {
+  border-color: rgb(var(--border));
+}
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  font-variation-settings: 'opsz' 32;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth Transitions - Performance Optimized */
+* {
+  transition: colors 150ms cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Focus Ring System - Accessibility */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+
+/* Glassmorphism Utility */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Loading Skeleton Animation */
+.skeleton {
+  background: linear-gradient(90deg, 
+    rgba(var(--neutral), 0.1) 25%, 
+    rgba(var(--neutral), 0.2) 50%, 
+    rgba(var(--neutral), 0.1) 75%
+  );
+  background-size: 200px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+/* Executive Presence Typography */
+.display {
+  font-size: 4.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.heading-1 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.heading-2 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.heading-3 {
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

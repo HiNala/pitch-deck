@@ -1,0 +1,86 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String      @id @default(uuid())
+  email     String      @unique
+  name      String?
+  decks     Deck[]
+  visits    DeckVisit[]
+  createdAt DateTime    @default(now())
+
+  @@map("users")
+}
+
+model Deck {
+  id          String        @id @default(uuid())
+  userId      String
+  title       String
+  templateKey String // A | B | C | D
+  slideCount  Int
+  status      DeckStatus    @default(DRAFT)
+  slides      Slide[]
+  versions    DeckVersion[]
+  visits      DeckVisit[]
+  pdfUrl      String? // current "FINAL" PDF
+  shareSlug   String?       @unique
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("decks")
+}
+
+enum DeckStatus {
+  DRAFT
+  FINAL
+}
+
+model DeckVersion {
+  id        String   @id @default(uuid())
+  deckId    String
+  versionNo Int
+  pdfUrl    String?
+  createdAt DateTime @default(now())
+  deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@unique([deckId, versionNo])
+  @@map("deck_versions")
+}
+
+model Slide {
+  id        String   @id @default(uuid())
+  deckId    String
+  index     Int
+  json      Json // { heading, bullets, img? }
+  updatedAt DateTime @updatedAt
+  deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@unique([deckId, index])
+  @@map("slides")
+}
+
+model DeckVisit {
+  id        BigInt   @id @default(autoincrement())
+  deckId    String
+  userId    String? // null → anonymous
+  ipHash    String
+  ua        String
+  duration  Int // seconds on viewer page
+  createdAt DateTime @default(now())
+  deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([deckId, createdAt])
+  @@map("deck_visits")
+} 
