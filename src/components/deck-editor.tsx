@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   ZoomIn, 
   ZoomOut, 
@@ -17,7 +18,15 @@ import {
   Share,
   Plus,
   Trash2,
-  Copy
+  Copy,
+  Sparkles,
+  MessageCircle,
+  Loader2,
+  Wand2,
+  BrainCircuit,
+  Check,
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +34,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import SharingModal from "@/components/ui/sharing-modal";
 
 interface Slide {
   id: string;
@@ -48,6 +61,12 @@ interface SlideElement {
 
 interface DeckEditorProps {
   className?: string;
+}
+
+interface AIPromptSuggestion {
+  title: string;
+  prompt: string;
+  icon: React.ReactNode;
 }
 
 export function DeckEditor({ className }: DeckEditorProps) {
@@ -107,6 +126,19 @@ export function DeckEditor({ className }: DeckEditorProps) {
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('design');
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // AI Assistant States
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generatedContent, setGeneratedContent] = useState<string | null>(null);
+  const [aiGenerationType, setAiGenerationType] = useState<'slide' | 'element' | 'optimize'>('slide');
+
+  // PDF Export States
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Sharing Modal State
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const currentSlide = slides[currentSlideIndex];
 
@@ -239,6 +271,206 @@ export function DeckEditor({ className }: DeckEditorProps) {
     ? currentSlide.elements.find(el => el.id === selectedElement)
     : null;
 
+  // AI Assistant Functions
+  const aiPromptSuggestions: Record<string, AIPromptSuggestion[]> = {
+    slide: [
+      {
+        title: "Introduction Slide",
+        prompt: "Generate an introduction slide for a business presentation",
+        icon: <MessageCircle className="w-4 h-4 text-primary" />
+      },
+      {
+        title: "Team Overview",
+        prompt: "Create a slide introducing our team members and their roles",
+        icon: <MessageCircle className="w-4 h-4 text-primary" />
+      },
+      {
+        title: "Product Features",
+        prompt: "List the key features of our product in a concise slide format",
+        icon: <MessageCircle className="w-4 h-4 text-primary" />
+      }
+    ],
+    element: [
+      {
+        title: "Catchy Headline",
+        prompt: "Write a catchy headline for my presentation slide",
+        icon: <Type className="w-4 h-4 text-primary" />
+      },
+      {
+        title: "Value Proposition",
+        prompt: "Create a compelling value proposition statement",
+        icon: <Type className="w-4 h-4 text-primary" />
+      },
+      {
+        title: "Call to Action",
+        prompt: "Generate a strong call to action for the final slide",
+        icon: <Type className="w-4 h-4 text-primary" />
+      }
+    ],
+    optimize: [
+      {
+        title: "Simplify Language",
+        prompt: "Simplify the language in my selected text while keeping the meaning",
+        icon: <Wand2 className="w-4 h-4 text-primary" />
+      },
+      {
+        title: "Make More Professional",
+        prompt: "Rewrite the selected text to sound more professional",
+        icon: <Wand2 className="w-4 h-4 text-primary" />
+      },
+      {
+        title: "Fix Grammar",
+        prompt: "Fix any grammar or spelling issues in the selected text",
+        icon: <Wand2 className="w-4 h-4 text-primary" />
+      }
+    ]
+  };
+
+  const handleAIGenerate = async () => {
+    if (!aiPrompt.trim()) return;
+    
+    setIsGenerating(true);
+    setGenerationError(null);
+    setGeneratedContent(null);
+    
+    try {
+      const { generateSlideContent, generateTextElement, optimizeContent } = await import('@/lib/openai/generation');
+      
+      let response;
+      
+      if (aiGenerationType === 'slide') {
+        response = await generateSlideContent(aiPrompt);
+      } else if (aiGenerationType === 'element') {
+        response = await generateTextElement(aiPrompt);
+      } else if (aiGenerationType === 'optimize' && selectedElementData) {
+        response = await optimizeContent(selectedElementData.content, aiPrompt);
+      } else {
+        throw new Error("Invalid generation type or missing selection");
+      }
+      
+      if (response.success) {
+        setGeneratedContent(response.content);
+      } else {
+        setGenerationError(response.error || "Generation failed");
+      }
+    } catch (error) {
+      console.error('AI generation error:', error);
+      setGenerationError(error instanceof Error ? error.message : "Failed to generate content. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const applyGeneratedContent = () => {
+    if (!generatedContent) return;
+    
+    if (aiGenerationType === 'slide') {
+      // Create a new slide with the generated content
+      const newSlide: Slide = {
+        id: Date.now().toString(),
+        title: 'AI Generated Slide',
+        content: generatedContent,
+        backgroundColor: '#ffffff',
+        textColor: '#000000',
+        elements: [
+          {
+            id: `title-${Date.now()}`,
+            type: 'text',
+            x: 50,
+            y: 100,
+            width: 400,
+            height: 60,
+            content: generatedContent.split('\n')[0].replace('# ', ''),
+            style: { fontSize: '32px', fontWeight: 'bold' }
+          },
+          {
+            id: `content-${Date.now()}`,
+            type: 'text',
+            x: 50,
+            y: 180,
+            width: 400,
+            height: 200,
+            content: generatedContent.split('\n').slice(1).join('\n'),
+            style: { fontSize: '16px', color: '#666666' }
+          }
+        ]
+      };
+      
+      const newSlides = [...slides];
+      newSlides.splice(currentSlideIndex + 1, 0, newSlide);
+      setSlides(newSlides);
+      setCurrentSlideIndex(currentSlideIndex + 1);
+    } else if (aiGenerationType === 'element' || (aiGenerationType === 'optimize' && selectedElementData)) {
+      // Add a new text element or update the selected element
+      if (aiGenerationType === 'optimize' && selectedElementData) {
+        const updatedSlides = slides.map((slide, index) => 
+          index === currentSlideIndex 
+            ? {
+                ...slide,
+                elements: slide.elements.map(el => 
+                  el.id === selectedElementData.id 
+                    ? { ...el, content: generatedContent }
+                    : el
+                )
+              }
+            : slide
+        );
+        setSlides(updatedSlides);
+      } else {
+        const newElement: SlideElement = {
+          id: `ai-text-${Date.now()}`,
+          type: 'text',
+          x: 100,
+          y: 100,
+          width: 400,
+          height: 60,
+          content: generatedContent,
+          style: { fontSize: '24px', color: currentSlide.textColor }
+        };
+        
+        const updatedSlides = slides.map((slide, index) => 
+          index === currentSlideIndex 
+            ? { ...slide, elements: [...slide.elements, newElement] }
+            : slide
+        );
+        setSlides(updatedSlides);
+        setSelectedElement(newElement.id);
+      }
+    }
+    
+    // Reset AI states
+    setGeneratedContent(null);
+    setAiPrompt("");
+  };
+
+  const handlePromptSuggestionSelect = (suggestion: string) => {
+    setAiPrompt(suggestion);
+  };
+
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    
+    try {
+      const { generateAndDownloadPDF } = await import('@/lib/pdf/generator');
+      
+      const success = await generateAndDownloadPDF({
+        slides,
+        template: 'A', // TODO: Make this configurable
+        title: 'Pitch Deck',
+        filename: `pitch_deck_${new Date().toISOString().slice(0, 10)}.pdf`
+      });
+      
+      if (!success) {
+        // TODO: Show error toast/notification
+        console.error('PDF export failed');
+      }
+    } catch (error) {
+      console.error('PDF export error:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className={cn("flex h-screen bg-background", className)}>
       {/* Toolbar */}
@@ -293,11 +525,24 @@ export function DeckEditor({ className }: DeckEditorProps) {
           </div>
           
           <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              Export
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleExportPDF}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 mr-2" />
+              )}
+              {isExporting ? 'Exporting...' : 'Export PDF'}
             </Button>
-            <Button variant="ghost" size="sm">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setIsShareModalOpen(true)}
+            >
               <Share className="w-4 h-4 mr-2" />
               Share
             </Button>
@@ -466,9 +711,13 @@ export function DeckEditor({ className }: DeckEditorProps) {
       {/* Right Sidebar */}
       <div className="w-80 bg-background border-l border-border">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3 m-4">
+          <TabsList className="grid w-full grid-cols-4 m-4">
             <TabsTrigger value="design">Design</TabsTrigger>
             <TabsTrigger value="elements">Elements</TabsTrigger>
+            <TabsTrigger value="ai" className="flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              <span>AI</span>
+            </TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -662,6 +911,176 @@ export function DeckEditor({ className }: DeckEditorProps) {
               </div>
             </TabsContent>
 
+            <TabsContent value="ai" className="p-4 space-y-4">
+              <div>
+                <div className="flex items-center space-x-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-medium">AI Content Generator</h3>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label className="text-xs">Generation Type</Label>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant={aiGenerationType === 'slide' ? 'default' : 'outline'}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setAiGenerationType('slide')}
+                      >
+                        Slide
+                      </Button>
+                      <Button
+                        variant={aiGenerationType === 'element' ? 'default' : 'outline'}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setAiGenerationType('element')}
+                      >
+                        Element
+                      </Button>
+                      <Button
+                        variant={aiGenerationType === 'optimize' ? 'default' : 'outline'}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setAiGenerationType('optimize')}
+                        disabled={!selectedElementData || selectedElementData.type !== 'text'}
+                      >
+                        Optimize
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="ai-prompt" className="text-xs">Prompt</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 px-2">
+                            <Wand2 className="w-3.5 h-3.5 text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-2">
+                          <div className="space-y-1">
+                            <h4 className="text-xs font-medium text-muted-foreground">Suggestions</h4>
+                            <div className="space-y-1">
+                              {aiPromptSuggestions[aiGenerationType].map((suggestion, index) => (
+                                <button
+                                  key={index}
+                                  type="button"
+                                  onClick={() => handlePromptSuggestionSelect(suggestion.prompt)}
+                                  className="w-full text-left p-2 text-xs hover:bg-muted rounded-md transition-colors flex items-center gap-2"
+                                >
+                                  {suggestion.icon}
+                                  <span>{suggestion.title}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <Textarea
+                      id="ai-prompt"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder={
+                        aiGenerationType === 'slide' 
+                          ? "Describe the slide you want to create..." 
+                          : aiGenerationType === 'element'
+                          ? "Describe the text element you want to generate..."
+                          : "Describe how you want to optimize the selected text..."
+                      }
+                      className="min-h-[100px]"
+                    />
+                  </div>
+
+                  {generationError && (
+                    <div className="p-3 bg-destructive/10 text-destructive rounded-md flex items-center gap-2 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      <p>{generationError}</p>
+                    </div>
+                  )}
+
+                  {generatedContent && (
+                    <Card className="overflow-hidden">
+                      <CardContent className="p-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-medium">Generated Content</h4>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-7 px-2"
+                              onClick={() => setGeneratedContent(null)}
+                            >
+                              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                          </div>
+                          <div className="p-3 bg-muted/50 rounded-md text-sm max-h-[150px] overflow-y-auto whitespace-pre-wrap">
+                            {generatedContent}
+                          </div>
+                          <Button 
+                            size="sm" 
+                            className="w-full"
+                            onClick={applyGeneratedContent}
+                          >
+                            <Check className="w-4 h-4 mr-2" />
+                            Apply to {aiGenerationType === 'slide' ? 'New Slide' : aiGenerationType === 'optimize' ? 'Selected Element' : 'New Element'}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <Button 
+                    onClick={handleAIGenerate}
+                    disabled={isGenerating || !aiPrompt.trim() || (aiGenerationType === 'optimize' && !selectedElementData)}
+                    className="w-full"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate with AI
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h3 className="text-sm font-medium mb-3">AI Features</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+                    <div className="flex items-center space-x-2">
+                      <BrainCircuit className="w-4 h-4 text-primary" />
+                      <span className="text-sm">Smart Layout</span>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      Apply
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+                    <div className="flex items-center space-x-2">
+                      <Wand2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm">Style Suggestions</span>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      View
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
             <TabsContent value="settings" className="p-4 space-y-4">
               <div>
                 <h3 className="text-sm font-medium mb-3">Presentation Settings</h3>
@@ -687,17 +1106,26 @@ export function DeckEditor({ className }: DeckEditorProps) {
               <div>
                 <h3 className="text-sm font-medium mb-3">Export Options</h3>
                 <div className="space-y-2">
-                  <Button variant="outline" className="w-full justify-start">
-                    <Download className="w-4 h-4 mr-2" />
-                    Export as PDF
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={handleExportPDF}
+                    disabled={isExporting}
+                  >
+                    {isExporting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    {isExporting ? 'Generating PDF...' : 'Export as PDF'}
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button variant="outline" className="w-full justify-start" disabled>
                     <Download className="w-4 h-4 mr-2" />
-                    Export as PowerPoint
+                    Export as PowerPoint (Coming Soon)
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button variant="outline" className="w-full justify-start" disabled>
                     <Download className="w-4 h-4 mr-2" />
-                    Export as Images
+                    Export as Images (Coming Soon)
                   </Button>
                 </div>
               </div>
@@ -705,6 +1133,14 @@ export function DeckEditor({ className }: DeckEditorProps) {
           </div>
         </Tabs>
       </div>
+
+      {/* Sharing Modal */}
+      <SharingModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        presentationTitle="Pitch Deck Presentation"
+        presentationId="deck-123"
+      />
     </div>
   );
 } 
